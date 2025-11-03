@@ -25,7 +25,9 @@ df = df %>%
   mutate(Age_at_ICI_start = ifelse(Age_at_ICI_start == ">89", "90", Age_at_ICI_start)) %>%
   mutate(Age_at_ICI_start = as.numeric(Age_at_ICI_start)) %>%
   #Relabel vaccine group
-  mutate(group = ifelse(group == 1, "Observed vaccine", "Observed no vaccine"))
+  mutate(group = ifelse(group == 1, "Observed vaccine", "Observed no vaccine")) %>%
+  #To avoid convergence issues in the weight model we recode Ethnicity as a binary variable
+  mutate(Ethnicity = ifelse(Ethnicity == "White", "White", "Other"))
 
 ##################################
 # Restriction to eligible patients
@@ -69,9 +71,11 @@ variables_used_for_adjustment = c("Gender",
                                   "Had_Diabetes",
                                   "Had_Respiratory_Condition",
                                   "Previous_history_of_malignancy_at_ICI_start",
-                                  "English_as_primary_language",
-                                  "Had_CKD",
-                                  "CNS_disease")
+                                  "Had_CKD")
+                                  #"Ethnicity", #Led to convergence issue in the model  -- so the variable was not used
+                                  #"English_as_primary_language", #Led to convergence issue in the model  -- so the variable was not used
+                                  #"CNS_disease" led to convergence issues -- so the variable was not used
+
 weighting = weight(df_restricted_clone,
                    variables_used_for_adjustment,
                    print = TRUE, #To get plots for quality check

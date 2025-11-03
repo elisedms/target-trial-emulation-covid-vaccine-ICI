@@ -64,14 +64,15 @@ weight <- function(df_restricted_clone,
   ########
   
   ################################################
-  #Fit logistic model to estimate propensity scores
+  #Fit logistic model to estimate the probability of being vaccinated
   
   #Response variable should be numerical
   df_restricted_clone$group_num = ifelse(df_restricted_clone$group == "Observed vaccine",1,0) 
   formula_variable = paste0(variables_used_for_adjustment, collapse = "+")
-  #The propensity score model is fitted on the uncloned data
+  #The weight model is fitted on the clones still at risk at the end of the grace period (the ones who will get upweighted)
+  #i.e. in those who neither experienced the event before the end of the grace period nor got artificially censored
   ps_model = glm(formula = paste0("group_num ~ ", formula_variable),
-                 data = df_restricted_clone %>% filter(!clone_boolean),
+                 data = df_restricted_clone %>% filter(delay_os > end_grace_period_month),
                  family = quasibinomial())
   
   if(print){
@@ -81,8 +82,7 @@ weight <- function(df_restricted_clone,
   }
   
   ################################################
-  #Estimate the propensity score on the cloned dataset
-  
+  #Estimate the probability of being vaccinated on the cloned dataset (for every one -- but then we'll use them only for the clones still at risk at the end of the grace period)
   df_restricted_clone$ps = predict(ps_model,
                                    newdata = df_restricted_clone,
                                    type = "response")
@@ -95,7 +95,7 @@ weight <- function(df_restricted_clone,
   
   #Check propensity score overlap
   if(print){
-    plot_overlap = ggplot(data = df_restricted_no_clone,
+    plot_overlap = ggplot(data = df_restricted_no_clone %>% filter(delay_os > end_grace_period_month),
            aes(x=ps, group = group, fill = group)) +
       geom_density(alpha = 0.8) +
       scale_fill_manual(values = color_for_plots) + 
@@ -104,7 +104,7 @@ weight <- function(df_restricted_clone,
       labs(x = "Propensity score", y = "Density", fill = "Observed treatment group")
   }
   
-  #Estimate the weights based on the propensity score
+  #Estimate the IPCW weights (for every one -- but then we'll use them only for the clones still at risk at the end of the grace period)
   df_restricted_clone$weight = case_when(
     df_restricted_clone$group_num == 1 ~ 1/df_restricted_clone$ps,
     df_restricted_clone$group_num == 0 ~ 1/(1-df_restricted_clone$ps)
@@ -112,7 +112,7 @@ weight <- function(df_restricted_clone,
   
   #Check distribution of weights
   if(print){
-    plot_weight_distribution =   ggplot(data = df_restricted_clone %>% filter(!clone_boolean),
+    plot_weight_distribution =   ggplot(data = df_restricted_clone  %>% filter(delay_os > end_grace_period_month),
                                         aes(group = group, x = group, fill = group, y = weight)) + 
       geom_boxplot() +
       scale_fill_manual(values = color_for_plots) + 
@@ -121,15 +121,16 @@ weight <- function(df_restricted_clone,
       labs(x = "Observed treatment", y = "Weight distribution")
   }
   
+  #Finally compute the time-varying weights
   #Before the end of the grace period -- nobody can be censored so weighs are 1 for everyone
-  #At the end of the grace period uncensored patients are up-weighted with the weight computed above
+  #At the end of the grace period uncensored patients are up-weighted
   df_restricted_clone_long =
     bind_rows(df_restricted_clone %>% mutate(tstart = 0, tstop = end_grace_period_month, ipcw = 1),
               df_restricted_clone %>% mutate(tstart = end_grace_period_month, tstop = delay_os, ipcw = weight)) %>%
     #For patients who experience the event during the grace period
     filter(tstart < delay_os) %>%
     mutate(tstop = pmin(tstop, delay_os)) %>%
-    #Event only at the final row
+    #Event only at the final row for each clone
     mutate(status_os = ifelse(tstop == delay_os, status_os, 0))
   
   if(print){

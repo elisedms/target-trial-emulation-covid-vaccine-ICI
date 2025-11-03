@@ -21,7 +21,9 @@ df = df %>%
   mutate(Age_at_ICI_start = ifelse(Age_at_ICI_start == ">89", "90", Age_at_ICI_start)) %>%
   mutate(Age_at_ICI_start = as.numeric(Age_at_ICI_start)) %>%
   #Relabel vaccine group
-  mutate(group = ifelse(group == 1, "Observed vaccine", "Observed no vaccine"))
+  mutate(group = ifelse(group == 1, "Observed vaccine", "Observed no vaccine")) %>%
+  #To avoid convergence issues in the weight model we recode Ethnicity as a binary variable
+  mutate(Ethnicity = ifelse(Ethnicity == "Caucasian", "Caucasian", "Other"))
 
 ##################################
 # Restriction to eligible patients

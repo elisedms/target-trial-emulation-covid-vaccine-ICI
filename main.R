@@ -35,7 +35,6 @@ source("melanoma_pfs.R") #For melanoma patients - outcome progression free survi
 #Final plot assembly
 plot_tot = cowplot::plot_grid(plot_survival_curves_nsclc, plot_survival_curves_melanoma, plot_survival_curves_melanoma_pfs,
                    labels = c("A","B","C"), nrow = 1)
-
 plot_tot
 
 #Save plot
